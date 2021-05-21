@@ -3,6 +3,9 @@ name = "teemasterparser"
 version = "0.1.0"
 authors = ["Edgar <git@edgarluque.com>"]
 edition = "2018"
+description = "Parses the data from one day in https://ddnet.tw/stats/master/ to a gnuplot format."
+license = "MIT"
+keywords = ["teeworlds", "ddnet", "parser"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
