@@ -1,6 +1,6 @@
 [package]
 name = "teemasterparser"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Edgar <git@edgarluque.com>"]
 edition = "2018"
 description = "Parses the data from one day in https://ddnet.tw/stats/master/ to a gnuplot format."

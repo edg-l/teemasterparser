@@ -138,7 +138,7 @@ fn main() -> anyhow::Result<()> {
     plot.push_str("set output 'data.png'\n");
     plot.push_str("set key top left autotitle columnheader\n");
     plot.push_str(&format!(
-        r#"plot "{}" plot "data.dat" using 1:2 smooth csplines lw 2"#,
+        r#"plot "{}" using 1:2 smooth csplines lw 2"#,
         output_file
     ));
     plot.push('\n');
