@@ -1,9 +1,9 @@
 [package]
 name = "teemasterparser"
-version = "0.1.2"
+version = "0.2.0"
 authors = ["Edgar <git@edgarluque.com>"]
 edition = "2018"
-description = "Parses the data from one day in https://ddnet.tw/stats/master/ to a gnuplot format."
+description = "Parses the data from one day in https://ddnet.tw/stats/master/ and outputs a SVG plot with total players."
 license = "MIT"
 repository = "https://github.com/edg-l/teemasterparser"
 homepage = "https://github.com/edg-l/teemasterparser"
