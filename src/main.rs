@@ -59,22 +59,14 @@ fn main() -> anyhow::Result<()> {
         .arg(
             Arg::new("output")
                 .short('o')
-                .help("The output file")
+                .help("The output svg file")
                 .takes_value(true)
-                .default_missing_value("data.dat"),
-        )
-        .arg(
-            Arg::new("output-plot")
-                .short('p')
-                .help("The output gnuplot file")
-                .takes_value(true)
-                .default_missing_value("plot.gp"),
+                .default_missing_value("image.svg"),
         )
         .get_matches();
 
     let dir_path = matches.value_of("dir").unwrap();
-    let output_file = matches.value_of("output").unwrap_or("data.dat");
-    let output_plot_file = matches.value_of("output-plot").unwrap_or("plot.pg");
+    let output_file = matches.value_of("output").unwrap_or("image.svg");
 
     let mut paths: Vec<PathBuf> = fs::read_dir(dir_path)?.map(|x| x.unwrap().path()).collect();
     paths.sort();
@@ -84,66 +76,47 @@ fn main() -> anyhow::Result<()> {
     let total = paths.len();
     println!("Processing {} files", total);
 
-    let mut plot_data: Vec<String> = paths
+    //let mut plot_data = Vec::with_capacity(total);
+
+    let plot_data: Vec<(f64, f64)> = paths
         .par_iter()
         .map(|path| {
             let mut list = Vec::new();
             for mat in url_regex.captures_iter(&path.file_name().unwrap().to_string_lossy()) {
-                let hour = mat.name("hour").unwrap().as_str();
-                let minute = mat.name("minute").unwrap().as_str();
-                let second = mat.name("second").unwrap().as_str();
+                let hour: f64 = mat.name("hour").unwrap().as_str().parse().unwrap();
+                let minute: f64 = mat.name("minute").unwrap().as_str().parse().unwrap();
+                let second: f64 = mat.name("second").unwrap().as_str().parse().unwrap();
 
                 let mut file = fs::File::open(path).unwrap();
                 let mut buf = String::new();
                 file.read_to_string(&mut buf).unwrap();
                 let data: ServerList = serde_json::from_str(&buf).unwrap();
 
-                let total_players: usize = data.servers.iter().map(|x| x.info.clients.len()).sum();
+                let seconds = (hour * 60.0 * 60.0) + (minute * 60.0) + second;
+                let total_players = data
+                    .servers
+                    .iter()
+                    .map(|x| x.info.clients.len())
+                    .sum::<usize>() as f64;
 
-                list.push(format!(
-                    "{}-{}-{} {}\n",
-                    hour, minute, second, total_players
-                ));
+                list.push((seconds, total_players));
             }
             list
         })
         .flatten()
         .collect();
 
+    let mut plotter = poloto::plot("Total players", "Time", "Count");
+    plotter.line_fill("", &plot_data);
+    plotter.xinterval_fmt(|fmt, val, _| {
+        let seconds = val % 60.0;
+        let minutes = (val / 60.0).floor();
+        let hours = (minutes / 60.0).floor();
+        let minutes = minutes % 60.0;
+        write!(fmt, "{:02}:{:02}:{:02}", hours, minutes, seconds)
+    });
+
     let mut file = fs::File::create(output_file)?;
-    plot_data.sort();
-
-    for data in &plot_data {
-        file.write_all(data.as_bytes())?;
-    }
-
-    let mut file = fs::File::create(output_plot_file)?;
-
-    let mut plot = String::new();
-    plot.push_str("set xdata time\n");
-    plot.push_str("set xlabel 'Day Time'\n");
-    plot.push_str("set ylabel 'Concurrent players'\n");
-    plot.push_str("set grid\n");
-    plot.push_str("set key top left autotitle columnheader\n");
-    plot.push_str("set autoscale\n");
-    plot.push_str(r#"set timefmt "%H-%M-%S""#);
-    plot.push('\n');
-    plot.push_str(r#"set format x "%H-%M-%S""#);
-    plot.push('\n');
-    let first_date = plot_data.first().unwrap().split(' ').next().unwrap();
-    let last_date = plot_data.last().unwrap().split(' ').next().unwrap();
-    plot.push_str(&format!(r#"set xrange ["{}":"{}"]"#, first_date, last_date));
-    plot.push('\n');
-    plot.push_str("set terminal png size 1920,1080\n");
-    plot.push_str("set output 'data.png'\n");
-    plot.push_str("set key top left autotitle columnheader\n");
-    plot.push_str(&format!(
-        r#"plot "{}" using 1:2 smooth csplines lw 2"#,
-        output_file
-    ));
-    plot.push('\n');
-
-    file.write_all(plot.as_bytes())?;
-
+    write!(file, "{}", poloto::disp(|a| poloto::simple_theme(a, plotter))).unwrap();
     Ok(())
 }

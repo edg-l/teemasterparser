@@ -221,6 +221,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "poloto"
+version = "3.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04e1aa764e829faaaf896fd918104d8b3e03ccc8f05582410c429e48e0bd65f5"
+dependencies = [
+ "tagger",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -341,12 +350,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tagger"
+version = "3.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db3da51808b1db51c7a598654fbc224196c8f1a722c0cdb51f32b1dee3deeb13"
+
+[[package]]
 name = "teemasterparser"
 version = "0.1.2"
 dependencies = [
  "anyhow",
  "chrono",
  "clap",
+ "poloto",
  "rayon",
  "regex",
  "serde",

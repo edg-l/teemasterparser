@@ -15,6 +15,7 @@ categories = ["command-line-utilities"]
 anyhow = "1.0.52"
 chrono = "0.4.19"
 clap = "3.0.1"
+poloto = "3.11.1"
 rayon = "1.5.1"
 regex = "1.5.4"
 serde = { version = "1.0.133", features = ["derive"] }
