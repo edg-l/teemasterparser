@@ -52,21 +52,21 @@ fn main() -> anyhow::Result<()> {
             Arg::new("dir")
                 .short('d')
                 .value_name("DIR")
-                .about("The directory with all the json files")
+                .help("The directory with all the json files")
                 .takes_value(true)
                 .required(true),
         )
         .arg(
             Arg::new("output")
                 .short('o')
-                .about("The output file")
+                .help("The output file")
                 .takes_value(true)
                 .default_missing_value("data.dat"),
         )
         .arg(
             Arg::new("output-plot")
                 .short('p')
-                .about("The output gnuplot file")
+                .help("The output gnuplot file")
                 .takes_value(true)
                 .default_missing_value("plot.gp"),
         )
