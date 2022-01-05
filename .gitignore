@@ -3,3 +3,4 @@
 *.gp
 *.png
 *.svg
+!example.svg

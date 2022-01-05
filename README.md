@@ -7,3 +7,7 @@ Needs to be run using native arch:
 ```
 RUSTFLAGS="-C target-cpu=native" cargo r --release
 ```
+
+## Result
+
+![Example image](example.svg "Example")
