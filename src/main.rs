@@ -1,13 +1,15 @@
+use chrono::{TimeZone, DateTime, Utc};
+use clap::{App, Arg};
 use itertools::Itertools;
+use plotters::prelude::*;
 use rayon::prelude::*;
 use regex::Regex;
 use serde::Deserialize;
 use std::io::{BufReader, Cursor, Read, Write};
+use std::ops::Add;
+use std::{fs, path::PathBuf};
 use tar::Archive;
 use time::{ext::NumericalDuration, macros::date, Date, Duration, OffsetDateTime};
-
-use clap::{App, Arg};
-use std::{fs, path::PathBuf};
 
 #[derive(Debug, Deserialize)]
 struct Map {
@@ -90,7 +92,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn create_plot(cur_date: Date) -> anyhow::Result<()> {
-    println!("Prcoessing {}", cur_date);
+    println!("Started processing {}", cur_date);
     let path_regex: Regex =
         Regex::new(r#"(?P<hour>\d{2})_(?P<minute>\d{2})_(?P<second>\d{2}).json"#).unwrap();
 
@@ -113,7 +115,7 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
 
     let mut archive = Archive::new(decoder);
 
-    let plot_data = archive
+    let mut plot_data = archive
         .entries()?
         .step_by((60 * 5) / 5) // There is 1 file every 5 seconds.
         //.step_by((60) / 5) // There is 1 file every 5 seconds.
@@ -125,41 +127,72 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
 
             let captures = path_regex.captures(&filename).expect("match regex");
 
-            let hour: i64 = captures.name("hour").unwrap().as_str().parse().unwrap();
-            let minute: i64 = captures.name("minute").unwrap().as_str().parse().unwrap();
-            let second: i64 = captures.name("second").unwrap().as_str().parse().unwrap();
-            let seconds = (hour * 60 * 60) + (minute * 60) + second;
+            let hour: u32 = captures.name("hour").unwrap().as_str().parse().unwrap();
+            let minute: u32 = captures.name("minute").unwrap().as_str().parse().unwrap();
+            let second: u32 = captures.name("second").unwrap().as_str().parse().unwrap();
+            //let seconds = (hour * 60 * 60) + (minute * 60) + second;
             let data: ServerList = simd_json::from_reader(entry).expect("parse json");
+
+            let date = chrono::Utc
+                .ymd(
+                    cur_date.year(),
+                    cur_date.month() as u32,
+                    cur_date.day() as u32,
+                )
+                .and_hms(hour, minute, second);
             let total_players = data
                 .servers
                 .into_iter()
                 .map(|x| x.info.clients.len())
-                .sum::<usize>() as f64;
-            (seconds as f64, total_players)
+                .sum::<usize>() as i32;
+            (date, total_players)
         })
         .collect_vec();
 
-    let title = format!("Total players on {}", cur_date);
-    let mut plotter = poloto::plot(&title, "Time", "Count");
-    plotter.line_fill("", &plot_data);
-    plotter.xinterval_fmt(|fmt, val, _| {
-        let minutes = (val / 60.0).floor();
-        let hours = (minutes / 60.0).floor();
-        let minutes = minutes % 60.0;
-        if minutes < 30.0 {
-            write!(fmt, "{:02}:00", hours)
-        } else  {
-            write!(fmt, "{:02}:00", hours + 1.0)
-        }
-    });
+    plot_data.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
 
-    let mut file = fs::File::create(&format!("images/{}.svg", cur_date))?;
-    write!(
-        file,
-        "{}",
-        poloto::disp(|a| poloto::simple_theme(a, plotter))
+    let max_count = plot_data
+        .iter()
+        .reduce(|a, b| if a.1 > b.1 { a } else { b })
+        .unwrap();
+
+    let caption = format!("Total players on {}", cur_date);
+
+    let file_path = format!("images/{}.svg", cur_date);
+    let root_area = SVGBackend::new(&file_path, (1000, 600)).into_drawing_area();
+    root_area.fill(&WHITE).unwrap();
+
+    let mut ctx = ChartBuilder::on(&root_area)
+        .set_label_area_size(LabelAreaPosition::Left, 40)
+        .set_label_area_size(LabelAreaPosition::Bottom, 40)
+        .caption(&caption, ("sans-serif", 40))
+        .build_cartesian_2d(
+            chrono::Utc
+                .ymd(
+                    cur_date.year(),
+                    cur_date.month() as u32,
+                    cur_date.day().into(),
+                )
+                .and_hms(0, 0, 0)
+                ..plot_data
+                    .last()
+                    .unwrap()
+                    .0
+                    .add(chrono::Duration::seconds(1)),
+            0..(max_count.1 + 1),
+        )
+        .unwrap();
+
+    ctx.configure_mesh()
+        .x_label_formatter(&|x: &DateTime<Utc>| format!("{}", x.time()))
+        .draw()
+        .unwrap();
+
+    ctx.draw_series(
+        AreaSeries::new(plot_data, 0, &BLUE.mix(0.2))
+            .border_style(&BLUE)
     )
     .unwrap();
-    println!("wrote file");
+    println!("Finished processing {}", cur_date);
     Ok(())
 }
