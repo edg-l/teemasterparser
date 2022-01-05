@@ -143,11 +143,14 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
     let mut plotter = poloto::plot(&title, "Time", "Count");
     plotter.line_fill("", &plot_data);
     plotter.xinterval_fmt(|fmt, val, _| {
-        let seconds = val % 60.0;
         let minutes = (val / 60.0).floor();
         let hours = (minutes / 60.0).floor();
         let minutes = minutes % 60.0;
-        write!(fmt, "{:02}:{:02}:{:02}", hours, minutes, seconds)
+        if minutes < 30.0 {
+            write!(fmt, "{:02}:00", hours)
+        } else  {
+            write!(fmt, "{:02}:00", hours + 1.0)
+        }
     });
 
     let mut file = fs::File::create(&format!("images/{}.svg", cur_date))?;
