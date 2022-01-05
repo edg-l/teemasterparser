@@ -188,9 +188,11 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
         .draw()
         .unwrap();
 
+    let color = RGBColor(255, 165, 0);
+
     ctx.draw_series(
-        AreaSeries::new(plot_data, 0, &BLUE.mix(0.2))
-            .border_style(&BLUE)
+        AreaSeries::new(plot_data, 0, &color.mix(0.2))
+            .border_style(&color)
     )
     .unwrap();
     println!("Finished processing {}", cur_date);
