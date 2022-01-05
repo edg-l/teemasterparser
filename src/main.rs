@@ -1,4 +1,4 @@
-use chrono::{TimeZone, DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use clap::{App, Arg};
 use itertools::Itertools;
 use plotters::prelude::*;
@@ -80,7 +80,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut dates = Vec::with_capacity((yesterday - current_date).whole_days() as usize);
 
-    while current_date < yesterday {
+    while current_date <= yesterday {
         dates.push(current_date.clone());
         current_date = current_date.next_day().unwrap();
     }
@@ -140,12 +140,25 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
                     cur_date.day() as u32,
                 )
                 .and_hms(hour, minute, second);
-            let total_players = data
+            let total_players = data.servers.iter().flat_map(|x| &x.info.clients).count() as i32;
+            let total_players_spectating = data
                 .servers
-                .into_iter()
-                .map(|x| x.info.clients.len())
-                .sum::<usize>() as i32;
-            (date, total_players)
+                .iter()
+                .flat_map(|x| &x.info.clients)
+                .filter(|x| !x.is_player)
+                .count() as i32;
+            let total_players_playing = data
+                .servers
+                .iter()
+                .flat_map(|x| &x.info.clients)
+                .filter(|x| x.is_player)
+                .count() as i32;
+            (
+                date,
+                total_players,
+                total_players_playing,
+                total_players_spectating,
+            )
         })
         .collect_vec();
 
@@ -156,7 +169,7 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
         .reduce(|a, b| if a.1 > b.1 { a } else { b })
         .unwrap();
 
-    let caption = format!("Total players on {}", cur_date);
+    let caption = format!("Master Server Stats on {}", cur_date);
 
     let file_path = format!("images/{}.svg", cur_date);
     let root_area = SVGBackend::new(&file_path, (1000, 600)).into_drawing_area();
@@ -188,13 +201,34 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
         .draw()
         .unwrap();
 
-    let color = RGBColor(255, 165, 0);
+    ctx.draw_series(LineSeries::new(
+        plot_data.iter().map(|x| (x.0, x.2)),
+        &MAGENTA,
+    ))
+    .unwrap()
+    .label("Players")
+    .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &MAGENTA));
 
-    ctx.draw_series(
-        AreaSeries::new(plot_data, 0, &color.mix(0.2))
-            .border_style(&color)
-    )
-    .unwrap();
+    ctx.draw_series(LineSeries::new(plot_data.iter().map(|x| (x.0, x.3)), &RED))
+        .unwrap()
+        .label("Players Spectating")
+        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
+
+    ctx.draw_series(LineSeries::new(
+        plot_data.iter().map(|x| (x.0, x.1)),
+        &GREEN,
+    ))
+    .unwrap()
+    .label("Players InGame")
+    .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &GREEN));
+
+    ctx.configure_series_labels()
+        .position(SeriesLabelPosition::UpperLeft)
+        .border_style(&BLACK)
+        .background_style(&WHITE.mix(0.4))
+        .draw()
+        .unwrap();
+
     println!("Finished processing {}", cur_date);
     Ok(())
 }
