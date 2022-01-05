@@ -115,7 +115,8 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
 
     let plot_data = archive
         .entries()?
-        .step_by(12) // 60 seconds / every 5 seconds       
+        .step_by((60 * 5) / 5) // There is 1 file every 5 seconds.
+        //.step_by((60) / 5) // There is 1 file every 5 seconds.
         .map(|e| {
             let entry = e.unwrap();
             let path = entry.path().unwrap();
@@ -128,7 +129,7 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
             let minute: i64 = captures.name("minute").unwrap().as_str().parse().unwrap();
             let second: i64 = captures.name("second").unwrap().as_str().parse().unwrap();
             let seconds = (hour * 60 * 60) + (minute * 60) + second;
-            let data: ServerList = serde_json::from_reader(entry).expect("parse json");
+            let data: ServerList = simd_json::from_reader(entry).expect("parse json");
             let total_players = data
                 .servers
                 .into_iter()
@@ -138,7 +139,8 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
         })
         .collect_vec();
 
-    let mut plotter = poloto::plot("Total players", "Time", "Count");
+    let title = format!("Total players on {}", cur_date);
+    let mut plotter = poloto::plot(&title, "Time", "Count");
     plotter.line_fill("", &plot_data);
     plotter.xinterval_fmt(|fmt, val, _| {
         let seconds = val % 60.0;
