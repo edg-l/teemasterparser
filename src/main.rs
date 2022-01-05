@@ -68,7 +68,7 @@ fn main() -> anyhow::Result<()> {
     )
     .get_matches();*/
 
-    rayon::ThreadPoolBuilder::new().num_threads(4).build_global().unwrap();
+    //rayon::ThreadPoolBuilder::new().num_threads(4).build_global().unwrap();
 
     let mut current_date = date!(2021 - 5 - 18);
     let yesterday = OffsetDateTime::now_utc().date().previous_day().unwrap();
