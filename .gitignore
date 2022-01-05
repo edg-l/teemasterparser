@@ -4,4 +4,4 @@
 *.png
 *.svg
 !example.svg
-!images/
+!images/*.svg
