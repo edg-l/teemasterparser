@@ -1,15 +1,12 @@
 use chrono::{DateTime, TimeZone, Utc};
-use clap::{App, Arg};
 use itertools::Itertools;
 use plotters::prelude::*;
 use rayon::prelude::*;
 use regex::Regex;
 use serde::Deserialize;
-use std::io::{BufReader, Cursor, Read, Write};
-use std::ops::Add;
-use std::{fs, path::PathBuf};
+use std::{io::Read, ops::Add};
 use tar::Archive;
-use time::{ext::NumericalDuration, macros::date, Date, Duration, OffsetDateTime};
+use time::{macros::date, Date, OffsetDateTime};
 
 #[derive(Debug, Deserialize)]
 struct Map {
@@ -50,26 +47,6 @@ struct ServerList {
 }
 
 fn main() -> anyhow::Result<()> {
-    /*let matches = App::new("DDNet Http Master Server Parser")
-    .author("Edgar L. <contact@edgarluque.com>")
-    .about("Parses the http master server json data to gnuplot format")
-    .arg(
-        Arg::new("dir")
-            .short('d')
-            .value_name("DIR")
-            .help("The directory with all the json files")
-            .takes_value(true)
-            .required(true),
-    )
-    .arg(
-        Arg::new("output")
-            .short('o')
-            .help("The output svg file")
-            .takes_value(true)
-            .default_missing_value("image.svg"),
-    )
-    .get_matches();*/
-
     rayon::ThreadPoolBuilder::new()
         .num_threads(6)
         .build_global()
@@ -102,23 +79,13 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
     ))
     .call()?;
 
-    assert!(resp.has("Content-Length"));
-    let len: usize = resp.header("Content-Length").unwrap().parse()?;
-
-    let mut bytes_compressed: Vec<u8> = Vec::with_capacity(len);
-    resp.into_reader()
-        .take(50_000_000) // read max 50mb
-        .read_to_end(&mut bytes_compressed)?;
-
-    let buffer = Cursor::new(bytes_compressed);
-    let decoder = zstd::stream::Decoder::new(buffer)?;
+    let decoder = zstd::stream::Decoder::new(resp.into_reader())?;
 
     let mut archive = Archive::new(decoder);
 
     let mut plot_data = archive
         .entries()?
-        .step_by((60 * 5) / 5) // There is 1 file every 5 seconds.
-        //.step_by((60) / 5) // There is 1 file every 5 seconds.
+        .step_by((60 * 5) / 5) // There is 1 file every 5 seconds and we want to get data every 1 minute.
         .map(|e| {
             let entry = e.unwrap();
             let path = entry.path().unwrap();
@@ -130,7 +97,7 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
             let hour: u32 = captures.name("hour").unwrap().as_str().parse().unwrap();
             let minute: u32 = captures.name("minute").unwrap().as_str().parse().unwrap();
             let second: u32 = captures.name("second").unwrap().as_str().parse().unwrap();
-            //let seconds = (hour * 60 * 60) + (minute * 60) + second;
+
             let data: ServerList = simd_json::from_reader(entry).expect("parse json");
 
             let date = chrono::Utc
