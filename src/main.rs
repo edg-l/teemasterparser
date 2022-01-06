@@ -4,7 +4,7 @@ use plotters::prelude::*;
 use rayon::prelude::*;
 use regex::Regex;
 use serde::Deserialize;
-use std::{io::Read, ops::Add};
+use std::{ops::Add};
 use tar::Archive;
 use time::{macros::date, Date, OffsetDateTime};
 
