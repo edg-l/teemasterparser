@@ -206,7 +206,7 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
         &MAGENTA,
     ))
     .unwrap()
-    .label("Players")
+    .label("Players in game")
     .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &MAGENTA));
 
     ctx.draw_series(LineSeries::new(plot_data.iter().map(|x| (x.0, x.3)), &RED))
@@ -219,7 +219,7 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
         &GREEN,
     ))
     .unwrap()
-    .label("Players InGame")
+    .label("Players")
     .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &GREEN));
 
     ctx.configure_series_labels()
