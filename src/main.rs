@@ -1,12 +1,13 @@
 use chrono::{DateTime, TimeZone, Utc};
+use clap::Parser;
 use itertools::Itertools;
 use plotters::prelude::*;
 use rayon::prelude::*;
 use regex::Regex;
 use serde::Deserialize;
-use std::ops::Add;
+use std::{io::BufReader, ops::Add, path::PathBuf, sync::Arc};
 use tar::Archive;
-use time::{macros::date, Date, OffsetDateTime};
+use time::{format_description, macros::date, Date, OffsetDateTime};
 
 #[derive(Debug, Deserialize)]
 struct Client {
@@ -28,33 +29,42 @@ struct ServerList {
     pub servers: Vec<Server>,
 }
 
-fn main() -> anyhow::Result<()> {
-    // TODO: actually use clap
-    /*
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(6)
-        .build_global()
-        .unwrap();
-        */
+#[derive(Parser)]
+#[command(author, version, about)]
+struct Cli {
+    /// The path to output the svg file. If it doesn't exist outputs to stdout.
+    #[arg(short, long)]
+    out_path: PathBuf,
+    /// Width of the svg image.
+    #[arg(short, long, default_value_t = 1920)]
+    width: u32,
+    /// Height of the svg image.
+    #[arg(short, long, default_value_t = 1080)]
+    height: u32,
+    /// The day to parse. Defaults to yesterday. Format must be ISO 8601
+    #[arg(short, long)]
+    date: Option<String>,
+}
 
-    let mut current_date = date!(2021 - 5 - 18);
-    let yesterday = OffsetDateTime::now_utc().date().previous_day().unwrap();
+fn main() -> color_eyre::Result<()> {
+    color_eyre::install()?;
 
-    let mut dates = Vec::with_capacity((yesterday - current_date).whole_days() as usize);
+    let cli = Cli::parse();
 
-    while current_date <= yesterday {
-        dates.push(current_date.clone());
-        current_date = current_date.next_day().unwrap();
-    }
+    let day = {
+        if let Some(date) = cli.date {
+            Date::parse(&date, &format_description::well_known::Iso8601::PARSING)?
+        } else {
+            OffsetDateTime::now_utc().date().previous_day().unwrap()
+        }
+    };
 
-    dates.into_iter().rev().par_bridge().for_each(|cur_date| {
-        create_plot(cur_date).expect("work");
-    });
+    create_plot(day, cli.out_path, (cli.width, cli.height))?;
+
     Ok(())
 }
 
-fn create_plot(cur_date: Date) -> anyhow::Result<()> {
-    println!("Started processing {}", cur_date);
+fn create_plot(cur_date: Date, out_path: PathBuf, size: (u32, u32)) -> color_eyre::Result<()> {
     let path_regex: Regex =
         Regex::new(r#"(?P<hour>\d{2})_(?P<minute>\d{2})_(?P<second>\d{2}).json"#).unwrap();
 
@@ -71,9 +81,9 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
     let mut plot_data = archive
         .entries()?
         .step_by(60 / 5) // There is 1 file every 5 seconds and we want to get data every 1 minute.
-        .map(|e| {
-            let entry = e.unwrap();
-            let path = entry.path().unwrap();
+        .filter_map(|e| e.ok())
+        .map(|e| -> color_eyre::Result<_> {
+            let path = e.path()?;
             let filename = path.file_name().expect("be a file");
             let filename = filename.to_string_lossy();
 
@@ -83,7 +93,7 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
             let minute: u32 = captures.name("minute").unwrap().as_str().parse().unwrap();
             let second: u32 = captures.name("second").unwrap().as_str().parse().unwrap();
 
-            let data: ServerList = serde_json::from_reader(entry).expect("parse json");
+            let data: ServerList = serde_json::from_reader(BufReader::new(e))?;
 
             let date = chrono::Utc
                 .ymd(
@@ -92,29 +102,41 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
                     cur_date.day() as u32,
                 )
                 .and_hms(hour, minute, second);
-            let total_players = data.servers.iter().flat_map(|x| &x.info.clients).count() as i32;
+
+            Ok((date, Arc::new(data)))
+        })
+        .map(|info| -> color_eyre::Result<_> {
+            let (date, data) = info?;
+            let total_players = data
+                .servers
+                .iter()
+                .filter_map(|x| x.info.clients.as_ref())
+                .flatten()
+                .count() as i32;
+
             let total_players_spectating = data
                 .servers
                 .iter()
-                .filter(|x| x.info.clients.is_some())
-                .flat_map(|x| x.info.clients.as_ref().unwrap())
+                .filter_map(|x| x.info.clients.as_ref())
+                .flatten()
                 .filter(|x| !x.is_player)
                 .count() as i32;
+
             let total_players_playing = data
                 .servers
                 .iter()
-                .filter(|x| x.info.clients.is_some())
-                .flat_map(|x| x.info.clients.as_ref().unwrap())
+                .filter_map(|x| x.info.clients.as_ref())
+                .flatten()
                 .filter(|x| x.is_player)
                 .count() as i32;
-            (
+            Ok((
                 date,
                 total_players,
                 total_players_playing,
                 total_players_spectating,
-            )
+            ))
         })
-        .collect_vec();
+        .collect::<Result<Vec<_>, _>>()?;
 
     plot_data.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
 
@@ -125,8 +147,7 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
 
     let caption = format!("Master Server Stats on {}", cur_date);
 
-    let file_path = format!("images/{}.svg", cur_date);
-    let root_area = SVGBackend::new(&file_path, (1000, 600)).into_drawing_area();
+    let root_area = SVGBackend::new(&out_path, size).into_drawing_area();
     root_area.fill(&WHITE).unwrap();
 
     let mut ctx = ChartBuilder::on(&root_area)
@@ -147,32 +168,27 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
                     .0
                     .add(chrono::Duration::seconds(1)),
             0..(max_count.1 + 1),
-        )
-        .unwrap();
+        )?;
 
     ctx.configure_mesh()
         .x_label_formatter(&|x: &DateTime<Utc>| format!("{}", x.time()))
-        .draw()
-        .unwrap();
+        .draw()?;
 
     ctx.draw_series(LineSeries::new(
         plot_data.iter().map(|x| (x.0, x.2)),
         &MAGENTA,
-    ))
-    .unwrap()
+    ))?
     .label("Players in game")
     .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &MAGENTA));
 
-    ctx.draw_series(LineSeries::new(plot_data.iter().map(|x| (x.0, x.3)), &RED))
-        .unwrap()
+    ctx.draw_series(LineSeries::new(plot_data.iter().map(|x| (x.0, x.3)), &RED))?
         .label("Players Spectating")
         .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
 
     ctx.draw_series(LineSeries::new(
         plot_data.iter().map(|x| (x.0, x.1)),
         &GREEN,
-    ))
-    .unwrap()
+    ))?
     .label("Players")
     .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &GREEN));
 
@@ -180,9 +196,6 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
         .position(SeriesLabelPosition::UpperLeft)
         .border_style(&BLACK)
         .background_style(&WHITE.mix(0.4))
-        .draw()
-        .unwrap();
-
-    println!("Finished processing {}", cur_date);
+        .draw()?;
     Ok(())
 }
