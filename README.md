@@ -12,15 +12,16 @@ cargo install teemasterparser
 $ teemasterparser --help
 Parses the data from one day in https://ddnet.tw/stats/master/ and outputs a SVG plot with total players.
 
-Usage: teemasterparser [OPTIONS] --out-path <OUT_PATH>
+Usage: teemasterparser.exe <COMMAND>
+
+Commands:
+  graph       Create graphics
+  game-modes  Game mode related commands
+  help        Print this message or the help of the given subcommand(s)
 
 Options:
-  -o, --out-path <OUT_PATH>  The path to output the svg file. If it doesn't exist outputs to stdout
-  -w, --width <WIDTH>        Width of the svg image [default: 1920]
-  -h, --height <HEIGHT>      Height of the svg image [default: 1080]
-  -d, --date <DATE>          The day to parse. Defaults to yesterday. Format must be ISO 8601
-  -h, --help                 Print help information
-  -V, --version              Print version information
+  -h, --help     Print help information
+  -V, --version  Print version information
 ```
 
 ## Run
