@@ -164,23 +164,25 @@ fn create_plot(cur_date: NaiveDate, out_path: PathBuf, size: (u32, u32)) -> colo
         .x_label_formatter(&|x: &DateTime<Utc>| format!("{}", x.time()))
         .draw()?;
 
-    ctx.draw_series(LineSeries::new(
-        plot_data.iter().map(|x| (x.0, x.2)),
-        &MAGENTA,
-    ))?
+    ctx.draw_series(
+        AreaSeries::new(plot_data.iter().map(|x| (x.0, x.1)), 0, &GREEN.mix(0.2))
+            .border_style(&GREEN),
+    )?
+    .label("Players")
+    .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &GREEN));
+
+    ctx.draw_series(
+        AreaSeries::new(plot_data.iter().map(|x| (x.0, x.2)), 0, &MAGENTA.mix(0.2))
+            .border_style(&MAGENTA),
+    )?
     .label("Players in game")
     .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &MAGENTA));
 
-    ctx.draw_series(LineSeries::new(plot_data.iter().map(|x| (x.0, x.3)), &RED))?
-        .label("Players Spectating")
-        .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
-
-    ctx.draw_series(LineSeries::new(
-        plot_data.iter().map(|x| (x.0, x.1)),
-        &GREEN,
-    ))?
-    .label("Players")
-    .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &GREEN));
+    ctx.draw_series(
+        AreaSeries::new(plot_data.iter().map(|x| (x.0, x.3)), 0, &RED.mix(0.2)).border_style(&RED),
+    )?
+    .label("Players Spectating")
+    .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], &RED));
 
     ctx.configure_series_labels()
         .position(SeriesLabelPosition::UpperLeft)

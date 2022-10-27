@@ -1,6 +1,6 @@
 [package]
 name = "teemasterparser"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Edgar <git@edgarluque.com>"]
 edition = "2021"
 description = "Parses the data from one day in https://ddnet.tw/stats/master/ and outputs a SVG plot with total players."
