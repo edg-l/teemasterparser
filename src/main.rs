@@ -4,40 +4,22 @@ use plotters::prelude::*;
 use rayon::prelude::*;
 use regex::Regex;
 use serde::Deserialize;
-use std::{ops::Add};
+use std::ops::Add;
 use tar::Archive;
 use time::{macros::date, Date, OffsetDateTime};
 
 #[derive(Debug, Deserialize)]
-struct Map {
-    pub name: String,
-}
-
-#[derive(Debug, Deserialize)]
 struct Client {
-    pub name: String,
-    pub clan: String,
-    pub country: i32,
-    pub score: i32,
     pub is_player: bool,
 }
 
 #[derive(Debug, Deserialize)]
 struct Info {
-    pub max_clients: i32,
-    pub max_players: i32,
-    pub passworded: bool,
-    pub game_type: String,
-    pub name: String,
-    pub map: Map,
-    pub version: String,
-    pub clients: Vec<Client>,
+    pub clients: Option<Vec<Client>>,
 }
 
 #[derive(Debug, Deserialize)]
 struct Server {
-    pub addresses: Vec<String>,
-    pub location: String,
     pub info: Info,
 }
 
@@ -47,10 +29,13 @@ struct ServerList {
 }
 
 fn main() -> anyhow::Result<()> {
+    // TODO: actually use clap
+    /*
     rayon::ThreadPoolBuilder::new()
         .num_threads(6)
         .build_global()
         .unwrap();
+        */
 
     let mut current_date = date!(2021 - 5 - 18);
     let yesterday = OffsetDateTime::now_utc().date().previous_day().unwrap();
@@ -85,7 +70,7 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
 
     let mut plot_data = archive
         .entries()?
-        .step_by((60 * 5) / 5) // There is 1 file every 5 seconds and we want to get data every 1 minute.
+        .step_by(60 / 5) // There is 1 file every 5 seconds and we want to get data every 1 minute.
         .map(|e| {
             let entry = e.unwrap();
             let path = entry.path().unwrap();
@@ -98,7 +83,7 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
             let minute: u32 = captures.name("minute").unwrap().as_str().parse().unwrap();
             let second: u32 = captures.name("second").unwrap().as_str().parse().unwrap();
 
-            let data: ServerList = simd_json::from_reader(entry).expect("parse json");
+            let data: ServerList = serde_json::from_reader(entry).expect("parse json");
 
             let date = chrono::Utc
                 .ymd(
@@ -111,13 +96,15 @@ fn create_plot(cur_date: Date) -> anyhow::Result<()> {
             let total_players_spectating = data
                 .servers
                 .iter()
-                .flat_map(|x| &x.info.clients)
+                .filter(|x| x.info.clients.is_some())
+                .flat_map(|x| x.info.clients.as_ref().unwrap())
                 .filter(|x| !x.is_player)
                 .count() as i32;
             let total_players_playing = data
                 .servers
                 .iter()
-                .flat_map(|x| &x.info.clients)
+                .filter(|x| x.info.clients.is_some())
+                .flat_map(|x| x.info.clients.as_ref().unwrap())
                 .filter(|x| x.is_player)
                 .count() as i32;
             (

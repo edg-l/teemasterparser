@@ -12,18 +12,17 @@ categories = ["command-line-utilities"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.52"
-chrono = "0.4.19"
-clap = "3.0.1"
-itertools = "0.10.3"
-plotters = "0.3.1"
-poloto = "3.11.1"
-rayon = "1.5.1"
-regex = "1.5.4"
-serde = { version = "1.0.133", features = ["derive"] }
-serde_json = "1.0.74"
-simd-json = "0.4.13"
+anyhow = "1.0.66"
+chrono = "0.4.22"
+clap = "4.0.18"
+itertools = "0.10.5"
+plotters = "0.3.4"
+poloto = "16.2.6"
+rayon = "1.5.3"
+regex = "1.6.0"
+serde = { version = "1.0.147", features = ["derive"] }
+serde_json = "1.0.87"
 tar = "0.4.38"
-time = { version = "0.3.5", features = ["macros"] }
-ureq = "2.4.0"
-zstd = "0.9.1"
+time = { version = "0.3.16", features = ["macros"] }
+ureq = "2.5.0"
+zstd = "0.11.2"
