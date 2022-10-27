@@ -1,13 +1,10 @@
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use clap::Parser;
-use itertools::Itertools;
 use plotters::prelude::*;
-use rayon::prelude::*;
 use regex::Regex;
 use serde::Deserialize;
-use std::{io::BufReader, ops::Add, path::PathBuf, sync::Arc};
+use std::{io::BufReader, path::PathBuf, sync::Arc};
 use tar::Archive;
-use time::{format_description, macros::date, Date, OffsetDateTime};
 
 #[derive(Debug, Deserialize)]
 struct Client {
@@ -41,7 +38,7 @@ struct Cli {
     /// Height of the svg image.
     #[arg(short, long, default_value_t = 1080)]
     height: u32,
-    /// The day to parse. Defaults to yesterday. Format must be ISO 8601
+    /// The day to parse. Defaults to yesterday. Format must be %Y-%m-%d
     #[arg(short, long)]
     date: Option<String>,
 }
@@ -53,9 +50,12 @@ fn main() -> color_eyre::Result<()> {
 
     let day = {
         if let Some(date) = cli.date {
-            Date::parse(&date, &format_description::well_known::Iso8601::PARSING)?
+            NaiveDate::parse_from_str(&date, "%Y-%m-%d")?
         } else {
-            OffsetDateTime::now_utc().date().previous_day().unwrap()
+            Utc::now()
+                .checked_sub_signed(chrono::Duration::days(1))
+                .unwrap()
+                .date_naive()
         }
     };
 
@@ -64,12 +64,12 @@ fn main() -> color_eyre::Result<()> {
     Ok(())
 }
 
-fn create_plot(cur_date: Date, out_path: PathBuf, size: (u32, u32)) -> color_eyre::Result<()> {
+fn create_plot(cur_date: NaiveDate, out_path: PathBuf, size: (u32, u32)) -> color_eyre::Result<()> {
     let path_regex: Regex =
         Regex::new(r#"(?P<hour>\d{2})_(?P<minute>\d{2})_(?P<second>\d{2}).json"#).unwrap();
 
     let resp = ureq::get(&format!(
-        "https://ddnet.tw/stats/master/{}.tar.zstd",
+        "https://ddnet.org/stats/master/{}.tar.zstd",
         cur_date
     ))
     .call()?;
@@ -95,13 +95,9 @@ fn create_plot(cur_date: Date, out_path: PathBuf, size: (u32, u32)) -> color_eyr
 
             let data: ServerList = serde_json::from_reader(BufReader::new(e))?;
 
-            let date = chrono::Utc
-                .ymd(
-                    cur_date.year(),
-                    cur_date.month() as u32,
-                    cur_date.day() as u32,
-                )
-                .and_hms(hour, minute, second);
+            let date = Utc
+                .from_local_datetime(&cur_date.and_hms(hour, minute, second))
+                .unwrap();
 
             Ok((date, Arc::new(data)))
         })
@@ -150,25 +146,19 @@ fn create_plot(cur_date: Date, out_path: PathBuf, size: (u32, u32)) -> color_eyr
     let root_area = SVGBackend::new(&out_path, size).into_drawing_area();
     root_area.fill(&WHITE).unwrap();
 
+    let from_date = Utc.from_local_datetime(&cur_date.and_hms(0, 0, 0)).unwrap();
+    let to_date = plot_data
+        .last()
+        .unwrap()
+        .0
+        .checked_add_signed(chrono::Duration::seconds(1))
+        .unwrap();
+
     let mut ctx = ChartBuilder::on(&root_area)
         .set_label_area_size(LabelAreaPosition::Left, 40)
         .set_label_area_size(LabelAreaPosition::Bottom, 40)
         .caption(&caption, ("sans-serif", 40))
-        .build_cartesian_2d(
-            chrono::Utc
-                .ymd(
-                    cur_date.year(),
-                    cur_date.month() as u32,
-                    cur_date.day().into(),
-                )
-                .and_hms(0, 0, 0)
-                ..plot_data
-                    .last()
-                    .unwrap()
-                    .0
-                    .add(chrono::Duration::seconds(1)),
-            0..(max_count.1 + 1),
-        )?;
+        .build_cartesian_2d(from_date..to_date, 0..(max_count.1 + 1))?;
 
     ctx.configure_mesh()
         .x_label_formatter(&|x: &DateTime<Utc>| format!("{}", x.time()))
