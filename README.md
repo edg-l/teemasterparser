@@ -1,6 +1,6 @@
 # teemasterparser
 
-Parses the data from one day in https://ddnet.tw/stats/master/ and generates svg images for each day.
+Command line tool to parse and analyze data from https://ddnet.tw/stats/master/
 
 # Install
 ```bash
