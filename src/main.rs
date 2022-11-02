@@ -38,8 +38,8 @@ struct Cli {
 enum Commands {
     /// Create graphics.
     Graph {
-        /// The path to output the svg file. If it doesn't exist outputs to stdout.
-        #[arg(short, long)]
+        /// The path to output the svg file.
+        #[arg(short, long, default_value = "output.svg")]
         out_path: PathBuf,
         /// Width of the svg image.
         #[arg(short, long, default_value_t = 1920)]
@@ -55,11 +55,11 @@ enum Commands {
         #[arg(short, long, default_value_t = 10)]
         number_gamemodes: usize,
     },
-    /// Game mode related commands
-    GameModes {
-        #[arg(short, long)]
-        find: Option<String>,
-    },
+    //// Game mode related commands
+    //GameModes {
+    //    #[arg(short, long)]
+    //    find: Option<String>,
+    //},
 }
 
 /*
@@ -94,9 +94,9 @@ fn main() -> color_eyre::Result<()> {
 
             create_plot(day, out_path, (width, height), number_gamemodes)?;
         }
-        Commands::GameModes { find } => {
-            todo!()
-        }
+        //Commands::GameModes { find } => {
+        //    todo!()
+        //}
     };
 
     Ok(())
