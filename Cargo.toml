@@ -13,11 +13,11 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 chrono = "0.4.22"
-clap = { version = "4.0.18", features = ["derive"] }
+clap = { version = "4.0.20", features = ["derive"] }
 color-eyre = "0.6.2"
 itertools = "0.10.5"
 plotters = "0.3.4"
-regex = "1.6.0"
+regex = "1.7.0"
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.87"
 tar = "0.4.38"

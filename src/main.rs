@@ -57,8 +57,18 @@ enum Commands {
     },
     /// Game mode related commands
     GameModes {
+        #[command(subcommand)]
+        command: GameModesCommands,
+    },
+}
+
+
+#[derive(Subcommand)]
+enum GameModesCommands {
+    Find {
         #[arg(short, long)]
-        find: Option<String>,
+        search: String,
+        // sort
     },
 }
 
@@ -94,8 +104,12 @@ fn main() -> color_eyre::Result<()> {
 
             create_plot(day, out_path, (width, height), number_gamemodes)?;
         }
-        Commands::GameModes { find } => {
-            todo!()
+        Commands::GameModes { command } => {
+            match command {
+                GameModesCommands::Find { search } => {
+
+                }
+            };
         }
     };
 
@@ -111,24 +125,28 @@ struct PlotData {
     game_types: HashMap<String, usize>,
 }
 
+fn fetch_data(date: NaiveDate) -> color_eyre::Result<Archive<impl Read>> {
+    let resp = ureq::get(&format!(
+        "https://ddnet.org/stats/master/{}.tar.zstd",
+        date
+    ))
+    .call()?;
+
+    let decoder = zstd::stream::Decoder::new(resp.into_reader())?;
+
+    Ok(Archive::new(decoder))
+}
+
 fn create_plot(
     cur_date: NaiveDate,
     out_path: PathBuf,
     size: (u32, u32),
     number_gamemodes: usize,
 ) -> color_eyre::Result<()> {
+    let mut archive = fetch_data(cur_date)?;
+
     let path_regex: Regex =
         Regex::new(r#"(?P<hour>\d{2})_(?P<minute>\d{2})_(?P<second>\d{2}).json"#).unwrap();
-
-    let resp = ureq::get(&format!(
-        "https://ddnet.org/stats/master/{}.tar.zstd",
-        cur_date
-    ))
-    .call()?;
-
-    let decoder = zstd::stream::Decoder::new(resp.into_reader())?;
-
-    let mut archive = Archive::new(decoder);
 
     let mut plot_data = archive
         .entries()?
