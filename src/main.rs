@@ -1,5 +1,6 @@
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use clap::{Parser, Subcommand};
+use directories::ProjectDirs;
 use plotters::prelude::*;
 use regex::Regex;
 use serde::Deserialize;
@@ -110,7 +111,7 @@ fn main() -> color_eyre::Result<()> {
             number_gamemodes,
             skip_gamemodes,
             hide_players,
-            frequency
+            frequency,
         } => {
             create_plot(
                 day,
@@ -119,7 +120,7 @@ fn main() -> color_eyre::Result<()> {
                 number_gamemodes,
                 skip_gamemodes,
                 hide_players,
-                frequency
+                frequency,
             )?;
         }
         Commands::GameModes { command } => {
@@ -138,15 +139,33 @@ struct PlotData {
     total_players: i32,
     total_players_playing: i32,
     total_players_spectating: i32,
-    game_types: HashMap<String, (usize, usize)>,
+    game_types: HashMap<String, usize>,
 }
 
-fn fetch_data(date: NaiveDate) -> color_eyre::Result<Archive<impl Read>> {
-    let resp = ureq::get(&format!("https://ddnet.org/stats/master/{}.tar.zstd", date)).call()?;
+fn fetch_data(date: NaiveDate) -> color_eyre::Result<Archive<Box<dyn Read>>> {
+    if let Some(proj_dirs) = ProjectDirs::from("com", "edgarluque", "TeeMasterParser") {
+        let dir = proj_dirs.cache_dir();
+        std::fs::create_dir_all(dir)?;
+        let cache_file = dir.join(format!("{}.tar.zstd", date));
 
-    let decoder = zstd::stream::Decoder::new(resp.into_reader())?;
+        if !cache_file.exists() {
+            let resp =
+                ureq::get(&format!("https://ddnet.org/stats/master/{}.tar.zstd", date)).call()?;
+            let mut file = std::fs::File::create(&cache_file)?;
+            std::io::copy(&mut resp.into_reader(), &mut file)?;
+        } else {
+            println!("Using cached data");
+        }
 
-    Ok(Archive::new(decoder))
+        let file = std::fs::File::open(cache_file)?;
+        Ok(Archive::new(Box::new(zstd::stream::Decoder::new(file)?)))
+    } else {
+        // Can't cache.
+        let resp =
+            ureq::get(&format!("https://ddnet.org/stats/master/{}.tar.zstd", date)).call()?;
+        let decoder = zstd::stream::Decoder::new(resp.into_reader())?;
+        Ok(Archive::new(Box::new(decoder)))
+    }
 }
 
 fn create_plot(
@@ -214,7 +233,7 @@ fn create_plot(
                 .count() as i32;
 
             // Total, max concurrent
-            let mut game_types: HashMap<String, (usize, usize)> = HashMap::new();
+            let mut game_types: HashMap<String, usize> = HashMap::new();
 
             data.servers
                 .iter()
@@ -224,12 +243,9 @@ fn create_plot(
                     let key = x.info.game_type.as_ref().unwrap();
                     let amount = x.info.clients.as_ref().unwrap().len();
                     if let Some(a) = game_types.get_mut(key) {
-                        a.0 += amount;
-                        if a.1 < amount {
-                            a.1 = amount;
-                        }
+                        *a += amount;
                     } else {
-                        game_types.insert(key.clone(), (amount, amount));
+                        game_types.insert(key.clone(), amount);
                     }
                 });
 
@@ -246,18 +262,18 @@ fn create_plot(
     plot_data.sort_by(|a, b| a.date.partial_cmp(&b.date).unwrap());
 
     let mut total_game_types: HashMap<String, (usize, usize)> = HashMap::new();
-    for (game_type, (count, max_concurrent)) in plot_data
+    for (game_type, count) in plot_data
         .iter()
         .map(|x| &x.game_types)
         .flat_map(|x| x.iter())
     {
         if let Some(x) = total_game_types.get_mut(game_type) {
             x.0 += count;
-            if x.1 < *max_concurrent {
-                x.1 = *max_concurrent;
+            if x.1 < *count {
+                x.1 = *count;
             }
         } else {
-            total_game_types.insert(game_type.clone(), (*count, *max_concurrent));
+            total_game_types.insert(game_type.clone(), (*count, *count));
         }
     }
 
@@ -274,7 +290,7 @@ fn create_plot(
         if hide_players {
             total_game_types
                 .iter()
-                .map(|x| x.1.1)
+                .map(|x| x.1 .1)
                 .reduce(|a, b| if dbg!(a > b) { dbg!(a) } else { dbg!(b) })
                 .unwrap()
         } else {
@@ -307,7 +323,7 @@ fn create_plot(
 
     ctx.configure_mesh()
         .x_label_formatter(&|x: &DateTime<Utc>| format!("{}", x.time()))
-        .x_labels(10)
+        .x_labels(40)
         .draw()?;
 
     if !hide_players {
@@ -349,11 +365,7 @@ fn create_plot(
             plot_data.iter().map(|x| {
                 (
                     x.date,
-                    x.game_types
-                        .get(game_type)
-                        .cloned()
-                        .map(|x| x.0)
-                        .unwrap_or(0) as i32,
+                    x.game_types.get(game_type).cloned().unwrap_or(0) as i32,
                 )
             }),
             &color,

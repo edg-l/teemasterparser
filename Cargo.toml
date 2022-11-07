@@ -15,6 +15,7 @@ categories = ["command-line-utilities"]
 chrono = "0.4.22"
 clap = { version = "4.0.20", features = ["derive"] }
 color-eyre = "0.6.2"
+directories = "4.0.1"
 itertools = "0.10.5"
 plotters = "0.3.4"
 regex = "1.7.0"
