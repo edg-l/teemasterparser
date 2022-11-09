@@ -1,6 +1,6 @@
 [package]
 name = "teemasterparser"
-version = "0.3.2"
+version = "0.3.4"
 authors = ["Edgar <git@edgarluque.com>"]
 edition = "2021"
 description = "Command line tool to parse and analyze data from https://ddnet.tw/stats/master/"
