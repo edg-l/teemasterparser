@@ -11,9 +11,12 @@ keywords = ["teeworlds", "ddnet", "parser", "cli"]
 categories = ["command-line-utilities"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[profile.release]
+lto = true
+
 [dependencies]
 chrono = "0.4.22"
-clap = { version = "4.0.20", features = ["derive"] }
+clap = { version = "4.0.22", features = ["derive"] }
 color-eyre = "0.6.2"
 directories = "4.0.1"
 itertools = "0.10.5"
