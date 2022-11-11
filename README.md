@@ -1,4 +1,8 @@
 # teemasterparser
+[![Version](https://img.shields.io/crates/v/teemasterparser)](https://crates.io/crates/teemasterparser)
+[![Downloads](https://img.shields.io/crates/d/teemasterparser)](https://crates.io/crates/teemasterparser)
+[![License](https://img.shields.io/crates/l/teemasterparser)](https://crates.io/crates/teemasterparser)
+![Rust](https://github.com/edg-l/teemasterparser/workflows/Rust/badge.svg)
 
 Command line tool to parse and analyze data from https://ddnet.tw/stats/master/
 
@@ -9,19 +13,17 @@ cargo install teemasterparser
 
 ## Help
 ```bash
-$ teemasterparser --help
-Parses the data from one day in https://ddnet.tw/stats/master/ and outputs a SVG plot with total players.
-
-Usage: teemasterparser.exe <COMMAND>
+Usage: teemasterparser [OPTIONS] <COMMAND>
 
 Commands:
-  graph       Create graphics
-  game-modes  Game mode related commands
-  help        Print this message or the help of the given subcommand(s)
+  graph      Create graphics
+  gamemodes  Game mode related commands
+  help       Print this message or the help of the given subcommand(s)
 
 Options:
-  -h, --help     Print help information
-  -V, --version  Print version information
+  -d, --date <DATE>  The day to parse. Defaults to yesterday. Format must be %Y-%m-%d
+  -h, --help         Print help information
+  -V, --version      Print version information
 ```
 
 ## Run
