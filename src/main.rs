@@ -1,6 +1,8 @@
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
 use clap::{Parser, Subcommand};
+use comfy_table::{presets::UTF8_FULL, Attribute, Cell, ContentArrangement, Table};
 use directories::ProjectDirs;
+use itertools::Itertools;
 use plotters::prelude::*;
 use regex::Regex;
 use serde::Deserialize;
@@ -66,7 +68,7 @@ enum Commands {
         frequency: usize,
     },
     /// Game mode related commands
-    GameModes {
+    Gamemodes {
         #[command(subcommand)]
         command: GameModesCommands,
     },
@@ -74,9 +76,11 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum GameModesCommands {
-    Find {
+    /// List the gamemodes
+    List {
+        /// Filter gamemodes.
         #[arg(long)]
-        search: String,
+        search: Option<String>,
         // sort
     },
 }
@@ -123,9 +127,9 @@ fn main() -> color_eyre::Result<()> {
                 frequency,
             )?;
         }
-        Commands::GameModes { command } => {
+        Commands::Gamemodes { command } => {
             match command {
-                GameModesCommands::Find { search } => find_gamemodes(day, &search),
+                GameModesCommands::List { search } => find_gamemodes(day, search)?,
             };
         }
     };
@@ -382,6 +386,81 @@ fn create_plot(
     Ok(())
 }
 
-fn find_gamemodes(cur_date: NaiveDate, search: &str) {
-    todo!()
+fn find_gamemodes(cur_date: NaiveDate, search: Option<String>) -> color_eyre::Result<()> {
+    let mut archive = fetch_data(cur_date)?;
+
+    // gamemode: total players, max concurrent players
+    let mut gamemodes: HashMap<String, usize> = HashMap::new();
+
+    let iter = archive
+        .entries()?
+        .filter_map(|e| e.ok())
+        .map(|mut e| -> color_eyre::Result<_> {
+            let mut buffer = Vec::with_capacity(e.size() as usize);
+            e.read_to_end(&mut buffer)?;
+            let data: ServerList = serde_json::from_slice(&buffer)?;
+            Ok(data)
+        })
+        .map(|info| -> color_eyre::Result<_> {
+            let data = info?;
+
+            // Total, max concurrent
+            let mut game_types: HashMap<String, usize> = HashMap::with_capacity(50);
+
+            data.servers
+                .into_iter()
+                .filter_map(|x| match (x.info.clients, x.info.game_type) {
+                    (Some(client), Some(game_type)) => Some((client.len(), game_type)),
+                    _ => None,
+                })
+                .for_each(|(clients, game_type)| {
+                    game_types
+                        .entry(game_type)
+                        .and_modify(|x| *x += clients)
+                        .or_insert(clients);
+                });
+
+            Ok(game_types)
+        });
+
+    for data in iter {
+        let data = data?;
+
+        for (mode, count) in data {
+            gamemodes
+                .entry(mode)
+                .and_modify(|x| {
+                    *x = (*x).max(count);
+                })
+                .or_insert(count);
+        }
+    }
+
+    let mut data = gamemodes.into_iter().collect_vec();
+    data.sort_by(|a, b| a.1.cmp(&b.1).reverse());
+
+    let mut table = Table::new();
+    table
+        .load_preset(UTF8_FULL)
+        .set_content_arrangement(ContentArrangement::Dynamic)
+        .set_header(vec![
+            Cell::new("Gamemode").add_attribute(Attribute::Bold),
+            Cell::new("Max Concurrent players"),
+        ]);
+
+    let search = search.map(|x| x.to_lowercase());
+
+    for (gamemode, concurrent) in data.into_iter().filter(|x| {
+        if let Some(search) = &search {
+            x.0.to_lowercase().contains(search)
+        } else {
+            true
+        }
+    }) {
+        table.add_row(vec![Cell::new(gamemode), Cell::new(concurrent)]);
+    }
+
+    println!("{table}");
+
+    Ok(())
 }
